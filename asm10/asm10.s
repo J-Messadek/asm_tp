@@ -5,55 +5,47 @@ section .text
     global _start
 
 _start:
-    ; Check argc >= 3
-    cmp qword [rsp], 3
-    jl .exit_fail
-    
-    ; Parse argv[1]
+    ; Parse argv[1], argv[2], argv[3]
     mov rsi, [rsp + 16]
     call parse_int
-    mov rbx, rax            ; rbx = first number
-    mov r12, rcx            ; r12 = sign1
+    mov r12, rax            ; first number
     
-    ; Parse argv[2]
     mov rsi, [rsp + 24]
     call parse_int
-    mov r13, rcx            ; r13 = sign2
+    mov r13, rax            ; second number
     
-    ; Apply signs and add
-    test r12, r12
-    jz .no_neg1
-    neg rbx
-.no_neg1:
-    test r13, r13
-    jz .no_neg2
-    neg rax
-.no_neg2:
-    add rax, rbx
+    mov rsi, [rsp + 32]
+    call parse_int
+    mov r14, rax            ; third number
     
-    ; Convert result to string and print
-    ; Check if negative
-    xor r14, r14            ; negative flag
+    ; Find max
+    mov rax, r12
+    cmp r13, rax
+    cmovg rax, r13
+    cmp r14, rax
+    cmovg rax, r14
+    
+    ; rax = max, convert to string and print
+    ; Handle negative
+    xor r15, r15
     test rax, rax
     jns .positive
     neg rax
-    mov r14, 1
+    mov r15, 1
 .positive:
     
-    ; Convert number to string (backwards)
     lea rdi, [rel result + 30]
-    mov byte [rdi + 1], 10  ; newline at end
-    mov rcx, 1              ; length counter (for newline)
+    mov byte [rdi + 1], 10
+    mov rcx, 1
     
     test rax, rax
-    jnz .convert_loop
-    ; Handle zero
+    jnz .conv_loop
     mov byte [rdi], '0'
     dec rdi
     inc rcx
     jmp .check_neg
-    
-.convert_loop:
+
+.conv_loop:
     test rax, rax
     jz .check_neg
     xor rdx, rdx
@@ -63,39 +55,31 @@ _start:
     mov byte [rdi], dl
     dec rdi
     inc rcx
-    jmp .convert_loop
+    jmp .conv_loop
 
 .check_neg:
-    test r14, r14
+    test r15, r15
     jz .do_print
     mov byte [rdi], '-'
     dec rdi
     inc rcx
 
 .do_print:
-    ; Print
-    inc rdi                 ; rdi points to start of string
+    inc rdi
     mov rax, 1
     mov rsi, rdi
     mov rdi, 1
     mov rdx, rcx
     syscall
 
-.exit:
     mov rax, 60
     xor rdi, rdi
     syscall
 
-.exit_fail:
-    mov rax, 60
-    mov rdi, 1
-    syscall
-
-; Parse integer from string at rsi
-; Returns value in rax, sign in rcx (1 = negative)
+; Parse signed integer from string at rsi -> rax (signed)
 parse_int:
     xor rax, rax
-    xor rcx, rcx
+    xor rcx, rcx            ; sign flag
     
     cmp byte [rsi], '-'
     jne .pi_loop
@@ -115,4 +99,8 @@ parse_int:
     jmp .pi_loop
 
 .pi_done:
+    test rcx, rcx
+    jz .pi_ret
+    neg rax
+.pi_ret:
     ret
